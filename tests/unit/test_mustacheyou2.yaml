@@ -1,0 +1,12 @@
+---
+outdir: yml_file_outdir
+data:
+  you: your pretty face
+  files:
+    this_file:
+      one: thing important to tell you
+  file_list:
+    - name: this_file.json
+      so: there
+      one: body once told me
+      you: yer momma

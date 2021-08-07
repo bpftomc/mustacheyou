@@ -5,13 +5,27 @@ import re
 
 class MustacheYouBase:
     debug = False
-    def __init__(self, raw_config={}):
+    def __init__(self, raw_config={}, extra_config=None):
         self.raw_config = raw_config
         self.source_dir = None
         self.dest_dir = None
         self.init_useful_config(raw_config)
     def init_useful_config(self, raw_config):
         self.useful_config = raw_config.copy()
+        self.useful_config['data'] = self.useful_config.get('data', {})
+        if 'yaml_path' in self.raw_config:
+            yaml_path_string = ">".join(self.raw_config['yaml_path'])
+            follow_the_path = self.useful_config['data']
+            steps = []
+            for path in self.raw_config['yaml_path']:
+                if path in follow_the_path:
+                    steps.append(follow_the_path[path])
+                    follow_the_path = follow_the_path[path]
+                else:
+                    raise Exception(f"Failed to find full yaml_path ({yaml_path_string}) in the given config. Lost our way at '{path}'.")
+            for step in steps:
+                for key, value in step.items():
+                    self.useful_config['data'][key] = value
         self.recursive_render_config()
     def recursive_render_config(self, subject=None):
         if not subject:
@@ -98,13 +112,13 @@ class MustacheYouBase:
             config = self.config
         # flat_values = self.get_flat_data_values(self.config)
         for destdir, srcdir in config.get('template_dirs',{}).items():
-            logging.info(f"Config1: {config}")
+            # logging.info(f"Config1: {config}")
             self.run_templates(srcdir, destdir, config)
         if 'outdir' in config and 'mustache_templates_dir' in config:
-            logging.info(f"Config2: {config}")
+            # logging.info(f"Config2: {config}")
             self.run_templates(config['mustache_templates_dir'], config['outdir'], config)
         if 'outdir' in config and 'extra_template_dirs' in config:
-            logging.info(f"Config3: {config}")
+            # logging.info(f"Config3: {config}")
             for t_dir in config['extra_template_dirs']:
                 self.run_templates(t_dir, config['outdir'], config)
 
@@ -125,10 +139,17 @@ class MustacheYouBase:
         if not srcdir:
             raise Exception(f"run_templates(): source dir {srcdir} is not a thing")
         if not os.path.isdir(srcdir):
-            # logger.warning(f"run_templates(): source dir {srcdir} does not exist; cannot create {destdir}")
-            raise Exception(f"run_templates(): source dir {srcdir} does not exist; cannot create {destdir}")
+            if os.path.isfile(srcdir):
+                some_file = os.path.basename(srcdir)
+                srcdir = os.path.dirname(srcdir)
+                self.run_file(some_file, destdir, srcdir, srcdir)
+            else:
+                # logger.warning(f"run_templates(): source dir {srcdir} does not exist; cannot create {destdir}")
+                raise Exception(f"run_templates(): source dir {srcdir} does not exist; cannot create {destdir}")
         for root, _, files in os.walk(srcdir):
             for some_file in files:
+                # with open('os_walk.tmp', 'a') as debugfile2:
+                #     debugfile2.write(f"Srcdir {srcdir}, root {root}, file {some_file}\n")
                 excluded = False
                 if 'exclude' in self.config:
                     for pattern in self.config['exclude']:
@@ -140,24 +161,28 @@ class MustacheYouBase:
                         #     logging.warning(f"some_file {some_file} does not match exclusion pattern {pattern}")
                 if excluded:
                     continue
-                common_path = os.path.commonpath([srcdir, root])
-                # raw_relative_path = root.replace(common_path, '')
-                relative_path = re.sub('^/', '', root.replace(common_path, ''))
-                # logging.info(f"run_templates(): some_file {some_file} (root {root}, relative_path {relative_path})")
-                # with open('farts', 'w') as destfh:
-                #     destfh.write(f"run_templates(): some_file {some_file} (root {root}, relative_path {relative_path})\n")
-                #     destfh.write(f"run_templates(): common_path {common_path}, relative_path {relative_path}\n")
-                srcf = os.path.join(srcdir, relative_path, some_file)
-                destf = os.path.join(destdir, relative_path, some_file)
-                # logger.info(f"run_templates(): from {srcf} to {destf}")
-                for from_, to_ in filename_transforms.items():
-                    # destf0 = destf # DEBUG
-                    destf = re.sub(from_, to_, destf)
-                    # logger.info(f"run_templates(): destf before {destf0}, after {destf}, from {from_}, to {to_}") # DEBUG
-                os.makedirs(os.path.dirname(destf), exist_ok=True)
-                # self.run_template_file(srcf, destf, config)
-                # logging.warning(f"Running template file {srcf}")
-                self.run_template_file(srcf, destf)
+                self.run_file(some_file, destdir, srcdir, root)
+    def run_file(self, some_file, destdir, srcdir, root):
+        filename_transforms={} # TODO
+        config = self.config
+        common_path = os.path.commonpath([srcdir, root])
+        # raw_relative_path = root.replace(common_path, '')
+        relative_path = re.sub('^/', '', root.replace(common_path, ''))
+        # logging.info(f"run_templates(): some_file {some_file} (root {root}, relative_path {relative_path})")
+        # with open('farts', 'w') as destfh:
+        #     destfh.write(f"run_templates(): some_file {some_file} (root {root}, relative_path {relative_path})\n")
+        #     destfh.write(f"run_templates(): common_path {common_path}, relative_path {relative_path}\n")
+        srcf = os.path.join(srcdir, relative_path, some_file)
+        destf = os.path.join(destdir, relative_path, some_file)
+        # logger.info(f"run_templates(): from {srcf} to {destf}")
+        for from_, to_ in filename_transforms.items():
+            # destf0 = destf # DEBUG
+            destf = re.sub(from_, to_, destf)
+            # logger.info(f"run_templates(): destf before {destf0}, after {destf}, from {from_}, to {to_}") # DEBUG
+        os.makedirs(os.path.dirname(destf), exist_ok=True)
+        # self.run_template_file(srcf, destf, config)
+        # logging.warning(f"Running template file {srcf}")
+        self.run_template_file(srcf, destf)
 
     def run_template_file(self, source_f, dest_f, data=None):
         if data is None:

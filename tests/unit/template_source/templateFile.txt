@@ -1,0 +1,11 @@
+ABC, easy as {{ abc }}
+
+{{#section1}}section1{{/section1}}{{^section1}}(no section1){{/section1}}
+
+{{! section2: }}
+{{#section2}}{{ value }}
+{{/section2}}
+
+Next: {{ def }}
+Key interpolation: -{{ var123 }}-
+{{ csv_section2 }} for section2

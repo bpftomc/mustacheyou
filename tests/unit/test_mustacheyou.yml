@@ -1,0 +1,18 @@
+---
+mustache: template_source
+outdir: yml_file_outdir
+template_dirs:
+  # must_out/subdir_dest: . # source . means PWD
+  must_out/subdir_dest: template_source/source_subdir
+  # # NOTE that template_dirs is obeyed even if it disagrees with outdir (from this file or command line)
+exclude:
+  - excludeMe.txt
+data:
+  abc: 123
+  def: 'The next three after {{ abc }}'
+  "var{{abc}}": dingo
+  section1: false
+  section2:
+    - {value: uno}
+    - {value: dos, last: true}
+  csv_section2: "{{#section2}}{{value}}{{^last}}, {{/last}}{{/section2}}"
